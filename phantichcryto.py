@@ -133,7 +133,223 @@ def detect_signals(df):
         signals['Sell'] = signals['Sell'] | (price_below_cloud & conversion_below_base)
 
     return signals
+def plot_main_chart(df, signals):
+    fig = go.Figure()
+    
+    # Vẽ nến
+    fig.add_trace(go.Candlestick(
+        x=df.index,
+        open=df['open'],
+        high=df['high'],
+        low=df['low'],
+        close=df['close'],
+        name='Giá'
+    ))
+    
+    # Bollinger Bands
+    if show_bollinger:
+        fig.add_trace(go.Scatter(
+            x=df.index,
+            y=df['BB_upper'],
+            line=dict(color='rgba(200, 200, 200, 0.7)'),
+            name='BB Upper',
+            hoverinfo='skip'
+        ))
+        fig.add_trace(go.Scatter(
+            x=df.index,
+            y=df['BB_middle'],
+            line=dict(color='rgba(150, 150, 150, 0.7)'),
+            name='BB Middle',
+            hoverinfo='skip'
+        ))
+        fig.add_trace(go.Scatter(
+            x=df.index,
+            y=df['BB_lower'],
+            line=dict(color='rgba(200, 200, 200, 0.7)'),
+            name='BB Lower',
+            hoverinfo='skip',
+            fill='tonexty',
+            fillcolor='rgba(200, 200, 200, 0.1)'
+        ))
+    
+    # Moving Averages
+    if show_ma:
+        fig.add_trace(go.Scatter(
+            x=df.index,
+            y=df[f'MA_{ma_fast}'],
+            line=dict(color='blue', width=1),
+            name=f'MA {ma_fast}'
+        ))
+        fig.add_trace(go.Scatter(
+            x=df.index,
+            y=df[f'MA_{ma_slow}'],
+            line=dict(color='orange', width=1),
+            name=f'MA {ma_slow}'
+        ))
+    
+    # Ichimoku Cloud
+    if show_ichimoku:
+        fig.add_trace(go.Scatter(
+            x=df.index,
+            y=df['Ichimoku_SpanA'],
+            line=dict(color='rgba(0, 0, 0, 0)'),
+            name='Ichimoku Span A',
+            hoverinfo='skip'
+        ))
+        fig.add_trace(go.Scatter(
+            x=df.index,
+            y=df['Ichimoku_SpanB'],
+            line=dict(color='rgba(0, 0, 0, 0)'),
+            name='Ichimoku Span B',
+            hoverinfo='skip',
+            fill='tonexty',
+            fillcolor='rgba(100, 100, 200, 0.2)'
+        ))
+        fig.add_trace(go.Scatter(
+            x=df.index,
+            y=df['Ichimoku_Conversion'],
+            line=dict(color='green', width=1),
+            name='Conversion Line'
+        ))
+        fig.add_trace(go.Scatter(
+            x=df.index,
+            y=df['Ichimoku_Base'],
+            line=dict(color='red', width=1),
+            name='Base Line'
+        ))
+    
+    # Tín hiệu mua/bán
+    buy_signals = signals[signals['Buy'] == True]
+    sell_signals = signals[signals['Sell'] == True]
+    
+    if not buy_signals.empty:
+        fig.add_trace(go.Scatter(
+            x=buy_signals.index,
+            y=df.loc[buy_signals.index, 'low'] * 0.99,
+            mode='markers',
+            marker=dict(
+                symbol='triangle-up',
+                size=12,
+                color='green'
+            ),
+            name='Tín hiệu Mua'
+        ))
+    
+    if not sell_signals.empty:
+        fig.add_trace(go.Scatter(
+            x=sell_signals.index,
+            y=df.loc[sell_signals.index, 'high'] * 1.01,
+            mode='markers',
+            marker=dict(
+                symbol='triangle-down',
+                size=12,
+                color='red'
+            ),
+            name='Tín hiệu Bán'
+        ))
+    
+    # Cấu hình layout
+    fig.update_layout(
+        height=600,
+        xaxis_rangeslider_visible=False,
+        hovermode='x unified',
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        )
+    )
+    
+    return fig
 
+# Hàm vẽ biểu đồ chỉ báo phụ
+def plot_indicator_charts(df):
+    fig = go.Figure()
+    
+    # RSI
+    if show_rsi:
+        fig.add_trace(go.Scatter(
+            x=df.index,
+            y=df['RSI'],
+            line=dict(color='purple'),
+            name='RSI'
+        ))
+        fig.add_hline(y=70, line_dash="dash", line_color="red")
+        fig.add_hline(y=30, line_dash="dash", line_color="green")
+    
+    # MACD
+    if show_macd:
+        fig.add_trace(go.Bar(
+            x=df.index,
+            y=df['MACD_Hist'],
+            name='MACD Hist',
+            marker_color=np.where(df['MACD_Hist'] < 0, 'red', 'green')
+        ))
+        fig.add_trace(go.Scatter(
+            x=df.index,
+            y=df['MACD'],
+            line=dict(color='blue'),
+            name='MACD'
+        ))
+        fig.add_trace(go.Scatter(
+            x=df.index,
+            y=df['MACD_Signal'],
+            line=dict(color='orange'),
+            name='Signal'
+        ))
+    
+    # Cấu hình layout
+    fig.update_layout(
+        height=300,
+        hovermode='x unified',
+        showlegend=True
+    )
+    
+    return fig
+
+# Lấy và xử lý dữ liệu
+df = get_ohlcv_data(exchange_name, symbol, timeframe)
+if not df.empty:
+    df = calculate_indicators(df)
+    signals = detect_signals(df)
+    
+    # Hiển thị biểu đồ
+    st.plotly_chart(plot_main_chart(df, signals), use_container_width=True)
+    st.plotly_chart(plot_indicator_charts(df), use_container_width=True)
+    
+    # Hiển thị tín hiệu giao dịch
+    with st.expander("Chi tiết tín hiệu giao dịch", expanded=True):
+        st.write("**Tín hiệu Mua**")
+        buy_signals = signals[signals['Buy'] == True]
+        if not buy_signals.empty:
+            buy_details = pd.DataFrame({
+                'Thời gian': buy_signals.index,
+                'Giá': df.loc[buy_signals.index, 'close'],
+                'Chỉ báo': self._get_signal_sources(buy_signals, df)
+            })
+            st.dataframe(buy_details)
+        else:
+            st.warning("Không có tín hiệu mua trong khung thời gian này")
+        
+        st.write("**Tín hiệu Bán**")
+        sell_signals = signals[signals['Sell'] == True]
+        if not sell_signals.empty:
+            sell_details = pd.DataFrame({
+                'Thời gian': sell_signals.index,
+                'Giá': df.loc[sell_signals.index, 'close'],
+                'Chỉ báo': self._get_signal_sources(sell_signals, df)
+            })
+            st.dataframe(sell_details)
+        else:
+            st.warning("Không có tín hiệu bán trong khung thời gian này")
+    
+    # Hiển thị dữ liệu thô
+    with st.expander("Xem dữ liệu thô"):
+        st.dataframe(df.tail(20))
+else:
+    st.error("Không thể lấy dữ liệu. Vui lòng kiểm tra lại cặp tiền hoặc sàn giao dịch")
 def _get_signal_sources(signals, df, show_rsi, show_macd, show_bollinger, show_ma, show_ichimoku, ma_fast, ma_slow):
     sources = []
     for idx in signals.index:
