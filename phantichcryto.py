@@ -26,7 +26,7 @@ with st.sidebar:
     # Chọn sàn giao dịch
     exchange_name = st.selectbox(
         "Sàn giao dịch",
-        ["binance", "bybit", "kucoin", "okx"],
+        ["binance", "bybit", "kucoin", "okx", "ONUS"],
         index=0
     )
     
